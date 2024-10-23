@@ -1,14 +1,17 @@
 <template>
  <PieChart/>
+ <BarGraph/>
 </template>
 
 <script>
+import BarGraph from './components/BarGraph.vue';
 import PieChart from './components/PieChart.vue';
 
 export default {
   name: 'App',
   components: {
-    PieChart
+    PieChart,
+    BarGraph
   }
 }
 </script>
