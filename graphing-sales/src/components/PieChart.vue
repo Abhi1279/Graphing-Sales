@@ -1,5 +1,5 @@
 <template>
-     <h1>PieChart</h1>
+     <h1>PieChart component</h1>
   </template>
   
   <script>
