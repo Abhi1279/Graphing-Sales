@@ -1,14 +1,27 @@
 <template>
- <PieChart/>
+  <div class="container mt-4">
+    <div class="row">
+      <h3 class="mb-0 mx-auto mx-4">Sales Breakdown by Payment Type</h3>
+      <div class="col-md-6">
+        <PieChart />
+      </div>
+      
+      <div class="col-md-6">
+        <BarGraph />
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
+import BarGraph from './components/BarGraph.vue';
 import PieChart from './components/PieChart.vue';
 
 export default {
   name: 'App',
   components: {
-    PieChart
+    PieChart,
+    BarGraph
   }
 }
 </script>
