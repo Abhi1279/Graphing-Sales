@@ -1,4 +1,4 @@
-<template> 
+<template>
   <div class="container my-4 p-4 border rounded">
     <button class="btn btn-primary mb-3" @click="toggleVisibility" :disabled="loading">
       {{ isVisible ? 'Show Line Chart' : 'Show Bar Chart' }}
@@ -6,33 +6,25 @@
 
     <div class="form-group mb-4" style="float:right">
       <label for="year-select" class="form-label">Select Year:</label>
-      <select
-        class="form-select"
-        id="year-select"
-        v-model="selectedYear"
-        @change="updateChartData"
-        :disabled="loading"
-      >
+      <select class="form-select" id="year-select" v-model="selectedYear" @change="updateChartData" :disabled="loading">
         <option value="2024">2024</option>
         <option value="2023">2023</option>
         <option value="2022">2022</option>
       </select>
     </div>
 
-    <div class="row">
-      <div class="col-12">
-        <div v-if="loading" class="text-center my-4">
-          <div class="spinner-border" role="status">
-          </div>
-          <center><span class="sr-only">Loading...</span></center>
-        </div>
-        
-        <v-chart v-if="!loading && isVisible" :option="barChartOption" style="height: 400px;"></v-chart>
-        <v-chart v-if="!loading && !isVisible" :option="lineChartOption" style="height: 400px;"></v-chart>
-      </div>
+    <div v-if="loading" class="text-center my-4">
+      <div class="spinner-border" role="status"></div>
+      <center><span class="sr-only">Loading...</span></center>
     </div>
+
+    <ErrorMessage v-if="errorMessage" :message="errorMessage" />
+
+    <v-chart v-if="!loading && isVisible && !errorMessage" :option="barChartOption" style="height: 400px;"></v-chart>
+    <v-chart v-if="!loading && !isVisible && !errorMessage" :option="lineChartOption" style="height: 400px;"></v-chart>
   </div>
 </template>
+
 
 <script>
 import { defineComponent } from 'vue';
@@ -41,12 +33,15 @@ import { use } from 'echarts/core';
 import { BarChart, LineChart } from 'echarts/charts';
 import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { fetchSalesData } from '../service/service'
+import ErrorMessage from './ErrorMessage.vue';
 
 use([BarChart, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer]);
 
 export default defineComponent({
   components: {
     VChart,
+    ErrorMessage
   },
   data() {
     return {
@@ -55,148 +50,95 @@ export default defineComponent({
       lineChartOption: {},
       isVisible: true,
       loading: false,
-      salesData: {
-        2024: {
-          Visa: 23550,
-          MasterCard: 12315,
-          Discover: 765,
-          PayPal: 32182,
-        },
-        2023: {
-          Visa: 23344,
-          MasterCard: 11885,
-          Discover: 591,
-          PayPal: 31255,
-        },
-        2022: {
-          Visa: 24651,
-          MasterCard: 11258,
-          Discover: 921,
-          PayPal: 28907,
-        },
-      },
+      salesData: {},
+      errorMessage: '',
     };
   },
   mounted() {
     this.updateChartData();
   },
   methods: {
-    updateChartData() {
+    async updateChartData() {
       this.loading = true;
-      console.log('Loading state:', this.loading);
+      this.errorMessage = ''; 
+      try {
+        const products = await fetchSalesData(this.selectedYear); 
+        if (!products || products.length === 0) {
+          throw new Error('No data available for the selected year.'); 
+        }
 
-      setTimeout(() => {
-        const selectedYearData = this.salesData[this.selectedYear];
-        const categories = Object.keys(selectedYearData);
-        const values = Object.values(selectedYearData);
+        const categorySales = products.reduce((acc, product) => {
+          const category = product.category;
+          const existingCategory = acc.find(item => item.name === category);
+          existingCategory ? existingCategory.value++ : acc.push({ name: category, value: 1 });
+          return acc;
+        }, []);
+        
+        const categories = categorySales.map(item => item.name);
+        const values = categorySales.map(item => item.value);
 
-        const historicalData = ['2022', '2023', '2024'].map((year) => {
-          return Object.values(this.salesData[year]);
-        });
+        const historicalData = await Promise.all(
+          ['2022', '2023', '2024'].map(async year => {
+            const yearData = await fetchSalesData(year);
+            return yearData.reduce((acc, product) => {
+              acc[product.category] = (acc[product.category] || 0) + 1;
+              return acc;
+            }, {});
+          })
+        );
 
-        this.barChartOption = {
-          title: {
-            text: `Payment Types in 19 October ${this.selectedYear}`,
-            subtext: 'Sales Breakdown by Payment Type',
-            left: 'center',
-          },
-          tooltip: {
-            trigger: 'item',
-            axisPointer: {
-              type: 'shadow',
-            },
-          },
-          grid: {
-            left: '3%',
-            right: '4%',
-            bottom: '3%',
-            containLabel: true,
-          },
-          xAxis: {
-            type: 'category',
-            data: categories,
-            axisTick: {
-              alignWithLabel: true,
-            },
-          },
-          yAxis: {
-            type: 'value',
-          },
-          series: [
-            {
-              name: 'Sales',
-              type: 'bar',
-              data: values,
-              barWidth: '60%',
-              emphasis: {
-                itemStyle: {
-                  shadowBlur: 10,
-                  shadowOffsetX: 0,
-                  shadowColor: 'rgba(0, 0, 0, 0.5)',
-                },
-              },
-            },
-          ],
-        };
-
-        this.lineChartOption = {
-          title: {
-            text: `Payment Trends by Type`,
-            subtext: 'Sales Breakdown',
-            left: 'center',
-          },
-          tooltip: {
-            trigger: 'axis',
-          },
-          legend: {
-            data: categories,
-            orient: "horizontal",
-            left: 'center',
-            top: '13%',
-            itemGap: 30,
-          },
-          grid: {
-            left: '3%',
-            right: '4%',
-            bottom: '15%',
-            containLabel: true,
-            top: '90px'
-          },
-          xAxis: {
-            type: 'category',
-            data: ['2022', '2023', '2024'],
-            boundaryGap: false,
-          },
-          yAxis: {
-            type: 'value',
-          },
-          series: categories.map((category) => ({
-            name: category,
-            type: 'line',
-            data: historicalData.map(
-              (yearData) => yearData[categories.indexOf(category)]
-            ),
-            smooth: true,
-            emphasis: {
-              focus: 'series',
-            },
-          })),
-        };
-
+        this.updateCharts(categories, values, historicalData);
+      } catch (error) {
+        console.error('Error updating chart data:', error);
+        this.errorMessage = error.message || 'An error occurred while fetching data.';
+      } finally {
         this.loading = false;
-        console.log('Loading state:', this.loading);
-      }, 1000);
+      }
+    },
+    updateCharts(categories, values, historicalData) {
+      this.barChartOption = {
+        title: { text: `Sales Breakdown By Category ${this.selectedYear}`, left: 'center' },
+        tooltip: { trigger: 'item' },
+        xAxis: {
+          type: 'category',
+          data: categories,
+          axisLabel: {
+            interval: 0,
+            rotate: 30,
+          },
+        },
+        yAxis: { type: 'value' },
+        legend: {
+          orient: 'horizontal',
+          left: 'center',
+          top: '10%',
+        },
+        series: [{ name: '', type: 'bar', data: values }],
+      };
+      this.lineChartOption = {
+        title: { text: `Payment Trends by Type`, left: 'center' },
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: ['2022', '2023', '2024'] },
+        yAxis: { type: 'value' },
+        legend: {
+          orient: 'horizontal',
+          left: 'center',
+          top: '10%',
+        },
+        series: categories.map(category => ({
+          name: category,
+          type: 'line',
+          data: historicalData.map(yearData => yearData[category] || 0),
+        })),
+      };
     },
     toggleVisibility() {
-      this.loading = true;
-      setTimeout(() => {
-        this.isVisible = !this.isVisible;
-        this.loading = false;
-      }, 1000);
+      this.isVisible = !this.isVisible;
     },
   },
 });
 </script>
+
 
 <style scoped>
 .spinner-border {

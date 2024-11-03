@@ -1,7 +1,7 @@
 <template>
   <div class="container mt-4">
     <div class="row">
-      <h3 class="mb-0 mx-auto mx-4">Sales Breakdown by Payment Type</h3>
+      <h3 class="mb-0 mx-auto mx-4">Sales Breakdown by Product Category</h3>
       <div class="col-md-6">
         <PieChart />
       </div>

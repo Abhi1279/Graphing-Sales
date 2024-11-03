@@ -22,10 +22,12 @@
         <div class="spinner-border" role="status"></div>
         <center><span class="sr-only">Loading...</span></center>
       </div>
-      <v-chart v-if="!loading" :option="pieChartOption" class="w-100" style="height: 400px; max-width: 600px;"></v-chart>
+      <ErrorMessage v-if="errorMessage" :message="errorMessage" />
+      <v-chart v-if="!loading && !errorMessage" :option="pieChartOption" class="w-100" style="height: 400px; max-width: 600px;"></v-chart>
     </div>
   </div>
 </template>
+
 
 <script>
 import { defineComponent } from 'vue';
@@ -34,85 +36,92 @@ import { use } from 'echarts/core';
 import { PieChart } from 'echarts/charts';
 import { TitleComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-
+import { fetchSalesData } from '../service/service'
+import ErrorMessage from './ErrorMessage.vue';
 use([PieChart, TitleComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
 
 export default defineComponent({
   components: {
     VChart,
+    ErrorMessage
   },
   data() {
-    return {
-      selectedYear: '2024',
-      pieChartOption: {},
-      loading: false, 
-      salesData: {
-        2024: [
-          { value: 23550, name: 'Visa' },
-          { value: 12315, name: 'MasterCard' },
-          { value: 765, name: 'Discover' },
-          { value: 32182, name: 'PayPal' },
-        ],
-        2023: [
-          { value: 23344, name: 'Visa' },
-          { value: 11885, name: 'MasterCard' },
-          { value: 591, name: 'Discover' },
-          { value: 31255, name: 'PayPal' },
-        ],
-        2022: [
-          { value: 24651, name: 'Visa' },
-          { value: 11258, name: 'MasterCard' },
-          { value: 921, name: 'Discover' },
-          { value: 28907, name: 'PayPal' },
-        ],
-      },
-    };
-  },
+  return {
+    selectedYear: '2024',
+    pieChartOption: {},
+    loading: false,
+    salesData: [],
+    errorMessage: '', 
+  };
+},
   mounted() {
-    this.updateChartData();
+    this.updateChartData(); 
   },
   methods: {
-    updateChartData() {
-      this.loading = true;
-      setTimeout(() => {
-        this.pieChartOption = {
-          title: {
-            text: `Payment Types on 19th October ${this.selectedYear}`,
-            subtext: 'Sales Breakdown by Payment Type',
-            left: 'center',
+  async updateChartData() {
+    this.loading = true;
+    this.errorMessage = '';
+    try {
+      const products = await fetchSalesData(this.selectedYear);
+      if (!products || products.length === 0) {
+        this.errorMessage('No data available for the selected year.');
+      }
+
+      const categorySales = products.reduce((acc, product) => {
+        const category = product.category;
+        const existingCategory = acc.find(item => item.name === category);
+
+        if (existingCategory) {
+          existingCategory.value += 1;
+        } else {
+          acc.push({ value: 1, name: category });
+        }
+        return acc;
+      }, []);
+
+      this.pieChartOption = {
+        title: {
+          text: `Sales Breakdown by Category ${this.selectedYear}`,
+          subtext: 'Category-wise Sales Data',
+          left: 'center',
+        },
+        tooltip: {
+          trigger: 'item',
+        },
+        legend: {
+          orient: 'horizontal',
+          left: 'center',
+          top: 'bottom',
+          textStyle: {
+            fontWeight: 'bold',
+            fontSize: 14,
           },
-          tooltip: {
-            trigger: 'item',
-          },
-          legend: {
-            orient: 'horizontal',
-            left: 'center',
-            top: 'bottom',
-            textStyle: {
-              fontWeight: 'bold',
-              fontSize: 14,
-            },
-          },
-          series: [
-            {
-              name: 'Payment Type',
-              type: 'pie',
-              radius: '50%',
-              data: this.salesData[this.selectedYear],
-              emphasis: {
-                itemStyle: {
-                  shadowBlur: 10,
-                  shadowOffsetX: 0,
-                  shadowColor: 'rgba(0, 0, 0, 0.5)',
-                },
+        },
+        series: [
+          {
+            name: 'Sales',
+            type: 'pie',
+            radius: '50%',
+            data: categorySales,
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: 'rgba(0, 0, 0, 0.5)',
               },
             },
-          ],
-        };
-        this.loading = false;
-      }, 1000);
-    },
+          },
+        ],
+      };
+    } catch (error) {
+      console.error('Error updating chart:', error);
+      this.errorMessage = error.message || 'An error occurred while fetching data.';
+    } finally {
+      this.loading = false;
+    }
   },
+},
+
 });
 </script>
 
